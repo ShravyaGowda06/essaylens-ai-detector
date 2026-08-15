@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>EssayLens — Evidence-based essay analysis</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="shell">
+  <header>
+    <span class="badge">EssayLens</span>
+    <h1>See the signals, not just a score.</h1>
+    <p>Paste an admissions essay to inspect sentence rhythm, repetition, lexical variety and formal constructions.</p>
+  </header>
+
+  <section class="card">
+    <textarea id="essay" placeholder="Paste an essay here..."></textarea>
+    <div class="row">
+      <span id="count">0 words</span>
+      <button id="analyze">Analyze essay</button>
+    </div>
+  </section>
+
+  <section id="error" class="error hidden"></section>
+  <section id="results" class="hidden">
+    <div class="summary card">
+      <div>
+        <span class="muted">Stylometric indicator</span>
+        <div class="score" id="score">—</div>
+        <strong id="level">—</strong>
+        <p class="muted">Not a claim that the writer used AI.</p>
+      </div>
+      <div class="stats">
+        <div><b id="words">0</b><span>words</span></div>
+        <div><b id="sentences">0</b><span>sentences</span></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Evidence</h2>
+        <div id="evidence"></div>
+      </div>
+      <div class="card">
+        <h2>Sentence-level flags</h2>
+        <div id="sentencesBox"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Limitations</h2>
+      <ul id="limitations"></ul>
+    </div>
+  </section>
+</main>
+<script>
+const essay = document.getElementById('essay');
+essay.addEventListener('input', () => {
+  const n = essay.value.trim().split(/\s+/).filter(Boolean).length;
+  document.getElementById('count').textContent = `${n} words`;
+});
+document.getElementById('analyze').onclick = async () => {
+  const error = document.getElementById('error');
+  error.classList.add('hidden');
+  const res = await fetch('/analyze', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({text: essay.value})
+  });
+  const data = await res.json();
+  if (!res.ok) { error.textContent=data.error; error.classList.remove('hidden'); return; }
+  document.getElementById('results').classList.remove('hidden');
+  document.getElementById('score').textContent=data.score;
+  document.getElementById('level').textContent=data.level + ' signal level';
+  document.getElementById('words').textContent=data.word_count;
+  document.getElementById('sentences').textContent=data.sentence_count;
+
+  document.getElementById('evidence').innerHTML=data.evidence.map(x =>
+    `<div class="metric"><div class="metricTop"><b>${x.name}</b><span>${x.value}/100</span></div><div class="bar"><i style="width:${x.value}%"></i></div><small>${x.detail}</small></div>`
+  ).join('');
+
+  document.getElementById('sentencesBox').innerHTML=data.sentences.map(x =>
+    `<div class="sentence ${x.flagged?'flag':''}"><p>${x.text}</p>${x.reasons.length?`<small>Why: ${x.reasons.join('; ')}</small>`:'<small>No strong flag from these rules.</small>'}</div>`
+  ).join('');
+
+  document.getElementById('limitations').innerHTML=data.limitations.map(x=>`<li>${x}</li>`).join('');
+};
+</script>
+</body>
+</html>
